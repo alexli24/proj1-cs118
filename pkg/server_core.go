@@ -92,6 +92,18 @@ func (s Server) Connect(_ context.Context, r *Registration) (*AuthToken, error) 
 // (when you initially receive it, it will have the name of the recipient instead).
 // TODO: Implement `Send`. If any errors occur, return any error message you'd like.
 func (s Server) Send(ctx context.Context, msg *ChatMessage) (*Success, error) {
+	recipient := msg.User; 
+
+	sender, ok := ctx.Value("user").(string)
+	
+	if !ok || sender == "" {
+		return nil, errors.New("sender DNE")
+	}
+
+	msg.User := sender; 
+	s.Inboxes[recipient] = append(s.Inboxes[recipient], msg)
+
+	return &Success{Ok : true}, nil; 
 }
 
 // Implementation of the Fetch method defined in our `.proto` file.
@@ -102,6 +114,38 @@ func (s Server) Send(ctx context.Context, msg *ChatMessage) (*Success, error) {
 //
 // TODO: Implement Fetch. If any errors occur, return any error message you'd like.
 func (s Server) Fetch(ctx context.Context, _ *Empty) (*ChatMessages, error) {
+	batch_size, ok := ctx.Value("BATCH_SIZE").(int) 
+
+	if !ok || batch_size <= 0 {
+		return nil, errors.New("batch_size error")
+	}
+
+	user, ok := ctx.Value("user").(string)
+	if !ok || user == "" {
+		return nil, errors.New("user not authenticated")
+	}
+
+	chatMessages := &ChatMessages{
+    		Messages: []*ChatMessage{},
+	}
+
+	inbox, exists := s.Inboxes[user]
+
+	if !exists {
+		return nil, nil
+	}
+
+	for len(chatMessages.messages) < batch_size {
+		select {
+		case msg := <-inbox :
+			chatMessages.messages = append(chatMessages.Messages, msg)
+		
+		default :
+			return chatMessages, nil
+		}
+	}
+
+	return chatMessages, nil 
 }
 
 // Implementation of the List method defined in our `.proto` file.

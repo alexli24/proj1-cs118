@@ -37,7 +37,18 @@ func (e *DisconnectError) Error() string {
    If any errors occur, return any error message you'd like.
 */
 func Register(client WhatsUpClient, user string) (context.Context, error) {
+	ctx := context.Background() 
 
+	token, err := client.Connect(ctx, &Registration{SourceUser : user})
+
+	if err != nil || token == nil {
+		return nil, errors.New("error with register")
+	}
+
+	md := metadata.Pairs("token", token.Token)
+	
+	ctx = metadata.NewOutgoingContext(ctx, md)
+	return ctx, nil
 }
 
 // A helper function that returns an active client connection to the
